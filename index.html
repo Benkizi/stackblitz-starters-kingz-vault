@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kingz Vault: Official Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #f0f2f5; --card: #ffffff; --text: #2c3e50; --label: #777777;
+            --primary: #3498db; --accent: #2ecc71; --danger: #e74c3c;
+            --purple: #9b59b6; --shadow: rgba(0,0,0,0.08);
+        }
+        body.dark-mode {
+            --bg: #1a1a1a; --card: #2d2d2d; --text: #f0f2f5; --label: #aaaaaa;
+            --shadow: rgba(0,0,0,0.3);
+        }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); padding: 10px; transition: 0.3s; margin: 0; }
+        .card { background: var(--card); padding: 20px; border-radius: 15px; max-width: 450px; margin: 0 auto 15px auto; box-shadow: 0 4px 12px var(--shadow); }
+        
+        /* HEADER */
+        .header-bar { display: flex; justify-content: space-between; align-items: center; max-width: 450px; margin: 10px auto 20px auto; }
+        .header-left { display: flex; align-items: center; gap: 8px; }
+        .logo-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #27ae60; }
+        .brand-sub { font-size: 14px; font-weight: bold; margin: 0; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; }
+        .theme-btn { background: var(--card); border: 1px solid var(--primary); color: var(--text); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .profile-area { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+        .user-email-text { font-size: 10px; font-weight: bold; }
+        .logout-btn { background: var(--danger); color: white; border: none; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: bold; cursor: pointer; }
+
+        button { padding: 12px; font-size: 14px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; width: 100%; margin-bottom: 10px; }
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; background: var(--card); color: var(--text); }
+        .btn-green { background: var(--accent); color: white; }
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-yellow { background: #f1c40f; color: black; }
+        .btn-purple { background: var(--purple); color: white; }
+        
+        .label { font-size: 9px; color: var(--label); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+        .value { font-size: 20px; font-weight: bold; }
+        .kingz-box { background: #e3f2fd; border: 2px solid #90caf9; color: #333; }
+        body.dark-mode .kingz-box { background: #0d47a1; border-color: #1565c0; color: white; }
+        .history-item { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 11px; }
+        body.dark-mode .history-item { border-color: #444; }
+        .interest-tag { color: var(--danger); font-size: 9px; font-weight: bold; display: block; }
+        .deadline-banner { background: #fff3cd; color: #856404; padding: 10px; border-radius: 10px; font-size: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+    <div id="authContainer" class="card" style="margin-top: 50px; text-align: center;">
+        <img src="https://i.imgur.com/uXZ68FP.png" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #27ae60; margin-bottom: 10px;" alt="KINGz Logo">
+        <h2 style="margin-top: 0;">👑 KINGz Vault</h2>
+        <input type="email" id="emailInput" placeholder="Email Address" style="text-align: left;">
+        <input type="password" id="passwordInput" placeholder="Password" style="text-align: left;">
+        <button id="loginBtn" class="btn-green">Log In</button>
+        <p style="text-align: center; font-size: 12px; cursor: pointer; color: var(--primary);" id="forgotPassBtn">Forgot or Change Password?</p>
+        <p id="authError" style="color: var(--danger); text-align: center; font-size: 12px;"></p>
+    </div>
+
+    <div id="appContainer" style="display: none;">
+        <div class="header-bar">
+            <div class="header-left">
+                <button class="theme-btn" id="themeToggle">🌓</button>
+                <img src="https://i.imgur.com/uXZ68FP.png" class="logo-img" alt="KINGz Logo">
+                <div class="brand-text"><p class="brand-sub">Vault & Savings</p></div>
+            </div>
+            <div class="profile-area">
+                <span id="userEmailDisplay" class="user-email-text"></span>
+                <button id="logoutBtn" class="logout-btn">LOGOUT</button>
+            </div>
+        </div>
+
+        <div id="kingzCommandCenter" class="card kingz-box" style="display:none;">
+            <p class="label">🛠️ COMMAND CENTER</p>
+            <input type="email" id="newMemEmail" placeholder="New Member Email">
+            <input type="text" id="newMemPass" placeholder="Temp Password">
+            <button id="regBtn" class="btn-blue">Add Member</button>
+            <hr>
+            <input type="email" id="seedEmail" placeholder="Member Email">
+            <select id="seedType">
+                <option value="deposit">Previous Savings</option>
+                <option value="loan">Previous Loan</option>
+                <option value="repayment">Previous Repayment</option>
+            </select>
+            <input type="number" id="seedAmt" placeholder="Amount (₦)">
+            <input type="date" id="seedDate">
+            <button id="seedBtn" class="btn-yellow">Inject Data</button>
+            <p class="label">Pending Approvals</p>
+            <div id="pendingList"></div>
+            <p class="label" style="margin-top:10px;">Audit Logs</p>
+            <div id="fullAdminLog" style="max-height: 100px; overflow-y: auto; font-size: 9px; background: white; color: black; padding: 5px; border-radius: 5px;"></div>
+        </div>
+
+        <div class="card" style="background: #2c3e50; color: white; border: none;">
+            <p class="label" style="color: #bdc3c7;">Global Vault Strength</p>
+            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                <div><p class="label" style="color: #95a5a6;">Total Savings</p><p class="value" style="color: #2ecc71;">₦<span id="globalTotal">0</span></p></div>
+                <div><p class="label" style="color: #95a5a6;">Total Loans</p><p class="value" style="color: #f39c12;">₦<span id="globalLoans">0</span></p></div>
+            </div>
+        </div>
+
+        <div class="deadline-banner">⚠️ All current loans must be cleared by <strong>May 31, 2026</strong>.</div>
+
+        <div class="card">
+            <p class="label">My Personal Summary</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <div style="background: var(--bg); padding: 12px; border-radius: 12px; border-bottom: 3px solid var(--accent);">
+                    <p class="label">My Savings</p><p class="value" style="color: var(--accent);">₦<span id="pSavings">0</span></p>
+                </div>
+                <div style="background: var(--bg); padding: 12px; border-radius: 12px; border-bottom: 3px solid var(--danger);">
+                    <p class="label">My Loans</p><p class="value" style="color: var(--danger);">₦<span id="pLoans">0</span></p>
+                    <span id="interestNotice" class="interest-tag"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <p class="label">Transact</p>
+            <input type="number" id="userAmt" placeholder="Amount (₦)">
+            <input type="text" id="userRef" placeholder="Bank Reference (for deposits/repayments)">
+            <button id="userSaveBtn" class="btn-green">Deposit into Savings</button>
+            <button id="userRepayBtn" class="btn-purple">Repay My Loan</button>
+            <button id="userLoanBtn" class="btn-yellow">Request Loan</button>
+        </div>
+
+        <div class="card"><p class="label">📜 Transaction History</p><div id="historyList"></div></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, collection, addDoc, getDocs, updateDoc, deleteDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCe4uu1Tx4evlnk6m8oJx5ntastyLWN8ik",
+            authDomain: "kingz-savings.firebaseapp.com",
+            projectId: "kingz-savings",
+            storageBucket: "kingz-savings.firebasestorage.app",
+            messagingSenderId: "640840588707",
+            appId: "1:640840588707:web:25d3928b8e75e852578e16"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        let currentUser = null;
+        const ADMIN_EMAIL = "admin@kingz.com";
+
+        document.getElementById("themeToggle").onclick = () => {
+            document.body.classList.toggle("dark-mode");
+            localStorage.setItem("kingzTheme", document.body.classList.contains("dark-mode") ? "dark" : "light");
+        };
+        if(localStorage.getItem("kingzTheme") === "dark") document.body.classList.add("dark-mode");
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById("authContainer").style.display = "none";
+                document.getElementById("appContainer").style.display = "block";
+                document.getElementById("userEmailDisplay").innerText = user.email.split('@')[0].toUpperCase();
+                if(user.email.toLowerCase().trim() === ADMIN_EMAIL) document.getElementById("kingzCommandCenter").style.display = "block";
+                loadData();
+            } else {
+                document.getElementById("appContainer").style.display = "none";
+                document.getElementById("authContainer").style.display = "block";
+            }
+        });
+
+        async function loadData() {
+            const snap = await getDocs(collection(db, "ALL_TRANSACTIONS"));
+            let gt = 0, gl = 0, ps = 0, pl = 0, totalInt = 0;
+            const hList = document.getElementById("historyList");
+            const pList = document.getElementById("pendingList");
+            const adminLog = document.getElementById("fullAdminLog");
+            hList.innerHTML = ""; pList.innerHTML = ""; adminLog.innerHTML = "";
+            const sortedDocs = snap.docs.sort((a, b) => b.data().date - a.data().date);
+            const now = new Date();
+            
+            // May 31, 2026 Deadline
+            const deadlineDate = new Date("2026-05-31T23:59:59");
+
+            sortedDocs.forEach(d => {
+                const data = d.data();
+                const id = d.id;
+                const recordEmail = data.user.toLowerCase().trim();
+                const userEmail = currentUser.email.toLowerCase().trim();
+                let currentInt = 0;
+
+                // Fixed Logic: Only charge 5% if today's date is past May 31, 2026
+                if(data.type === 'loan' && data.status === 'approved') {
+                    if(now > deadlineDate) {
+                        currentInt = data.amount * 0.05;
+                    }
+                }
+
+                if(data.status === "approved") {
+                    if(data.type === 'deposit') gt += data.amount;
+                    if(data.type === 'loan') gl += (data.amount + currentInt);
+                    if(data.type === 'repayment') gl -= data.amount;
+
+                    if(recordEmail === userEmail) {
+                        if(data.type === 'deposit') ps += data.amount;
+                        if(data.type === 'loan') { pl += data.amount; totalInt += currentInt; }
+                        if(data.type === 'repayment') pl -= data.amount;
+                    }
+                }
+
+                if(recordEmail === userEmail) {
+                    const dateStr = data.date ? data.date.toDate().toLocaleDateString() : 'N/A';
+                    hList.innerHTML += `<div class="history-item"><strong>${data.type.toUpperCase()}</strong>: ₦${data.amount.toLocaleString()} [${data.status}] ${currentInt > 0 ? `<span class="interest-tag">+₦${currentInt.toLocaleString()} Penalty</span>` : ''}<br><small>${dateStr} | Ref: ${data.ref || 'N/A'}</small></div>`;
+                }
+                if(userEmail === ADMIN_EMAIL) {
+                    if(data.status === "pending") pList.innerHTML += `<button onclick="approve('${id}')" class="btn-green" style="font-size:9px; padding:4px; margin-bottom:5px;">Approve ${data.user} (₦${data.amount} - ${data.type})</button>`;
+                    adminLog.innerHTML += `<div style="border-bottom:1px solid #eee; padding:2px; display:flex; justify-content:space-between; align-items:center;"><span>${data.user}: ₦${data.amount}</span> <button onclick="window.undo('${id}')" style="background:red; color:white; border:none; padding:1px 4px; font-size:8px; cursor:pointer;">Undo</button></div>`;
+                }
+            });
+            document.getElementById("globalTotal").innerText = gt.toLocaleString();
+            document.getElementById("globalLoans").innerText = gl.toLocaleString();
+            document.getElementById("pSavings").innerText = ps.toLocaleString();
+            document.getElementById("pLoans").innerText = (pl + totalInt).toLocaleString();
+            document.getElementById("interestNotice").innerText = totalInt > 0 ? `(+₦${totalInt.toLocaleString()} Penalty)` : "";
+        }
+
+        window.approve = async (id) => { if(confirm("Confirm in bank?")) { await updateDoc(doc(db, "ALL_TRANSACTIONS", id), { status: "approved" }); loadData(); } };
+        window.undo = async (id) => { if(confirm("Delete record?")) { await deleteDoc(doc(db, "ALL_TRANSACTIONS", id)); loadData(); } };
+        document.getElementById("forgotPassBtn").onclick = async () => {
+            const email = document.getElementById("emailInput").value.trim().toLowerCase();
+            if (!email) return alert("Enter email!");
+            try { await sendPasswordResetEmail(auth, email); alert("Reset link sent!"); } catch (e) { alert(e.message); }
+        };
+        document.getElementById("regBtn").onclick = async () => {
+            const email = document.getElementById("newMemEmail").value.trim().toLowerCase();
+            try { await createUserWithEmailAndPassword(auth, email, newMemPass.value); alert("Member Added!"); } catch(e) { alert(e.message); }
+        };
+        document.getElementById("seedBtn").onclick = async () => {
+            const email = document.getElementById("seedEmail").value.trim().toLowerCase();
+            await addDoc(collection(db, "ALL_TRANSACTIONS"), {
+                amount: Number(seedAmt.value), user: email, type: document.getElementById("seedType").value,
+                ref: "PREVIOUS_RECORD", status: "approved", date: seedDate.value ? Timestamp.fromDate(new Date(seedDate.value)) : Timestamp.now()
+            });
+            alert("Data Injected!"); loadData();
+        };
+        async function userTrans(type) {
+            const amt = Number(document.getElementById("userAmt").value);
+            if(!amt) return alert("Enter amount!");
+            await addDoc(collection(db, "ALL_TRANSACTIONS"), {
+                amount: amt, user: currentUser.email.toLowerCase().trim(), ref: userRef.value || "REQUEST",
+                type: type, status: "pending", date: Timestamp.now()
+            });
+            alert("Submitted!"); loadData();
+        }
+        document.getElementById("userSaveBtn").onclick = () => userTrans('deposit');
+        document.getElementById("userRepayBtn").onclick = () => userTrans('repayment');
+        document.getElementById("userLoanBtn").onclick = () => userTrans('loan');
+        document.getElementById("loginBtn").onclick = () => signInWithEmailAndPassword(auth, emailInput.value.trim().toLowerCase(), passwordInput.value).catch(e => authError.innerText = e.message);
+        document.getElementById("logoutBtn").onclick = () => signOut(auth);
+    </script>
+</body>
+</html>
