@@ -40,7 +40,7 @@
         .history-item { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 11px; }
         body.dark-mode .history-item { border-color: #444; }
         .interest-tag { color: var(--danger); font-size: 9px; font-weight: bold; display: block; }
-        .deadline-banner { background: #fff3cd; color: #856404; padding: 10px; border-radius: 10px; font-size: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #ffeeba; }
+        .deadline-banner { background: #e8f4f8; color: #2980b9; padding: 10px; border-radius: 10px; font-size: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #bce8f1; }
         
         .pending-item { display: flex; justify-content: space-between; align-items: center; background: white; color: black; padding: 8px; margin-bottom: 5px; border-radius: 5px; font-size: 11px; border: 1px solid #ccc; }
         .action-btns { display: flex; gap: 5px; }
@@ -77,7 +77,6 @@
             </div>
         </div>
 
-        <!-- ADMIN PANELS -->
         <div id="kingzCommandCenter" class="card kingz-box" style="display:none;">
             <p class="label">🛠️ COMMAND CENTER</p>
             <input type="email" id="newMemEmail" placeholder="New Member Email">
@@ -89,9 +88,11 @@
                 <option value="deposit">Previous Savings</option>
                 <option value="loan">Previous Loan</option>
                 <option value="repayment">Previous Repayment</option>
-                <option value="interest">Manual Interest/Penalty</option>
+                <option value="interest">Manual Interest (Add)</option>
+                <option value="waiver">Interest Waiver (Remove)</option>
             </select>
             <input type="number" id="seedAmt" placeholder="Amount (₦)">
+            <input type="number" id="seedGrace" placeholder="Grace Period (Months) - For Loans Only">
             <input type="text" id="seedNarration" placeholder="Payment For / Penalty Reason">
             <input type="date" id="seedDate">
             <button id="seedBtn" class="btn-yellow">Inject Data</button>
@@ -106,7 +107,6 @@
             <div id="fullAdminLog" style="max-height: 120px; overflow-y: auto; font-size: 10px; background: white; color: black; padding: 5px; border-radius: 5px; border: 1px solid #ccc;"></div>
         </div>
 
-        <!-- MAIN GLOBAL METRICS -->
         <div class="card" style="background: #2c3e50; color: white; border: none;">
             <p class="label" style="color: #bdc3c7;">Global Vault Strength</p>
             <div style="display: flex; justify-content: space-between; margin-top: 10px;">
@@ -115,9 +115,8 @@
             </div>
         </div>
 
-        <div class="deadline-banner">⚠️ All current loans must be cleared by <strong>May 31, 2026</strong>.</div>
+        <div class="deadline-banner">⏳ Loans accrue a <strong>5% interest penalty</strong> if not cleared before the member's requested <strong>Grace Period</strong> expires.</div>
 
-        <!-- PERSONAL DASHBOARD -->
         <div class="card">
             <p class="label">My Personal Summary</p>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
@@ -136,12 +135,12 @@
             </div>
         </div>
 
-        <!-- USER INTERACTION PANEL -->
         <div class="card">
             <p class="label">Transact</p>
             <input type="number" id="userAmt" placeholder="Amount (₦)">
             <input type="text" id="userNarration" placeholder="Payment For (e.g., March & April 2026)">
             <input type="text" id="userRef" placeholder="Bank Reference (Optional)">
+            <input type="number" id="userGrace" placeholder="Grace Period (Months) - LOANS ONLY">
             
             <button id="userSaveBtn" class="btn-green">Deposit into Savings</button>
             <button id="userRepayBtn" class="btn-purple">Repay My Loan</button>
@@ -202,15 +201,18 @@
             hList.innerHTML = ""; pList.innerHTML = ""; adminLog.innerHTML = ""; memberDirectory.innerHTML = "";
             const sortedDocs = snap.docs.sort((a, b) => b.data().date - a.data().date);
             const now = new Date();
-            const deadlineDate = new Date("2026-05-31T23:59:59");
 
             // Base calculations for 2023, 2024, 2025 targets
             const currentYear = now.getFullYear();
             const currentMonth = now.getMonth() + 1; 
             let expectedSavings = 156000; 
-            if (currentYear === 2026) expectedSavings += (currentMonth * 10000);
+            if (currentYear === 2026) {
+                expectedSavings += (currentMonth * 10000);
+            } else if (currentYear > 2026) {
+                expectedSavings += (12 * 10000) + (((currentYear - 2027) * 12 + currentMonth) * 10000);
+            }
 
-            // Object matrix to track individual member profiles for the Admin Screen
+            // Object matrix to track individual member profiles
             let memberMatrix = {};
 
             sortedDocs.forEach(d => {
@@ -219,16 +221,23 @@
                 const recordEmail = data.user.toLowerCase().trim();
                 const userEmail = currentUser.email.toLowerCase().trim();
                 const displayNarration = data.narration ? data.narration : "Not Specified";
+                const dateObj = data.date ? data.date.toDate() : new Date();
                 
-                // Initialize user profile in directory matrix if not existing
                 if(!memberMatrix[recordEmail]) {
                     memberMatrix[recordEmail] = { savings: 0, loans: 0, autoInt: 0, manualInt: 0 };
                 }
 
                 let currentAutoInt = 0;
-                // Auto-calculate 5% loan penalties post deadline
-                if(data.type === 'loan' && data.status === 'approved' && now > deadlineDate) {
-                    currentAutoInt = data.amount * 0.05;
+                
+                // NEW: Member-Defined Grace Period Calculator
+                if(data.type === 'loan' && data.status === 'approved') {
+                    let gracePeriodEnd = new Date(dateObj);
+                    let approvedGrace = data.graceMonths || 3; // Fallback to 3 for old records
+                    gracePeriodEnd.setMonth(gracePeriodEnd.getMonth() + approvedGrace);
+                    
+                    if(now > gracePeriodEnd) {
+                        currentAutoInt = data.amount * 0.05; // 5% penalty applied if older than user's grace period
+                    }
                 }
 
                 if(data.status === "approved") {
@@ -246,37 +255,47 @@
                         memberMatrix[recordEmail].loans -= data.amount;
                     }
                     if(data.type === 'interest') {
-                        gl += data.amount; // Manual interest additions expand target loan books
+                        gl += data.amount;
                         memberMatrix[recordEmail].manualInt += data.amount;
                     }
+                    if(data.type === 'waiver') {
+                        gl -= data.amount;
+                        memberMatrix[recordEmail].loans -= data.amount;
+                    }
 
-                    // Map metrics explicitly if processing the logged-in user
                     if(recordEmail === userEmail) {
                         if(data.type === 'deposit') ps += data.amount;
                         if(data.type === 'loan') { pl += data.amount; totalInt += currentAutoInt; }
                         if(data.type === 'repayment') pl -= data.amount;
                         if(data.type === 'interest') totalInt += data.amount;
+                        if(data.type === 'waiver') pl -= data.amount;
                     }
                 }
 
-                const dateObj = data.date ? data.date.toDate() : new Date();
                 const dateStr = dateObj.toLocaleDateString() + ' at ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
                 if(recordEmail === userEmail) {
                     let statusColor = data.status === "pending" ? "#f39c12" : (data.status === "rejected" ? "#e74c3c" : "#777");
+                    let displayType = data.type.toUpperCase();
+                    if(data.type === 'waiver') displayType = "INTEREST WAIVED";
+
+                    let graceText = data.type === 'loan' ? `<br><small style="color:var(--primary);">Grace Period: ${data.graceMonths || 3} Months</small>` : '';
+
                     hList.innerHTML += `<div class="history-item">
-                        <strong>${data.type.toUpperCase()}</strong>: ₦${data.amount.toLocaleString()} <span style="color:${statusColor}; font-weight:bold;">[${data.status}]</span>
+                        <strong>${displayType}</strong>: ₦${data.amount.toLocaleString()} <span style="color:${statusColor}; font-weight:bold;">[${data.status}]</span>
                         ${data.type === 'loan' && currentAutoInt > 0 ? `<span class="interest-tag">+₦${currentAutoInt.toLocaleString()} Auto Penalty</span>` : ''}
                         <span class="narration-text">For/Reason: ${displayNarration}</span>
+                        ${graceText}
                         <small>${dateStr} | Ref: ${data.ref || 'N/A'}</small>
                     </div>`;
                 }
                 
                 if(userEmail === ADMIN_EMAIL) {
                     if(data.status === "pending") {
+                        let graceText = data.type === 'loan' ? `<br><b style="color:var(--primary); font-size:9px;">Requested Grace: ${data.graceMonths || 0} Months</b>` : '';
                         pList.innerHTML += `
                         <div class="pending-item">
-                            <span><b>${data.user.split('@')[0].toUpperCase()}</b><br>₦${data.amount.toLocaleString()} <b>[${data.type.toUpperCase()}]</b><br><small class="narration-text">For: ${displayNarration}</small></span>
+                            <span><b>${data.user.split('@')[0].toUpperCase()}</b><br>₦${data.amount.toLocaleString()} <b>[${data.type.toUpperCase()}]</b><br><small class="narration-text">For: ${displayNarration}</small>${graceText}</span>
                             <div class="action-btns">
                                 <button onclick="window.approve('${id}')" style="background:#2ecc71; color:white;">✓ Approve</button>
                                 <button onclick="window.deny('${id}')" style="background:#e74c3c; color:white;">✕ Deny</button>
@@ -291,10 +310,9 @@
                 }
             });
 
-            // Build individual member dashboards inside the Admin Directory panel
             if(currentUser.email.toLowerCase().trim() === ADMIN_EMAIL) {
                 Object.keys(memberMatrix).forEach(mem => {
-                    if(mem === ADMIN_EMAIL) return; // Skip showing admin profile in matrix
+                    if(mem === ADMIN_EMAIL) return; 
                     let mSavings = memberMatrix[mem].savings;
                     let mLoans = memberMatrix[mem].loans + memberMatrix[mem].autoInt + memberMatrix[mem].manualInt;
                     let mDeficit = expectedSavings - mSavings;
@@ -313,12 +331,11 @@
                 });
             }
 
-            // Sync structural parameters on main user panel
             document.getElementById("globalTotal").innerText = gt.toLocaleString();
             document.getElementById("globalLoans").innerText = gl.toLocaleString();
             document.getElementById("pSavings").innerText = ps.toLocaleString();
             document.getElementById("pLoans").innerText = (pl + totalInt).toLocaleString();
-            document.getElementById("interestNotice").innerText = totalInt > 0 ? `(+₦${totalInt.toLocaleString()} Penalties Added)` : "";
+            document.getElementById("interestNotice").innerText = totalInt > 0 ? `(+₦${totalInt.toLocaleString()} Penalties Active)` : "";
             
             document.getElementById("pTarget").innerText = expectedSavings.toLocaleString();
             let myDeficit = expectedSavings - ps;
@@ -342,26 +359,49 @@
         document.getElementById("seedBtn").onclick = async () => {
             const email = document.getElementById("seedEmail").value.trim().toLowerCase();
             const nar = document.getElementById("seedNarration").value.trim();
+            const grace = Number(document.getElementById("seedGrace").value) || 0;
+            
             await addDoc(collection(db, "ALL_TRANSACTIONS"), {
                 amount: Number(document.getElementById("seedAmt").value), user: email, type: document.getElementById("seedType").value,
-                ref: "ADMIN_INJECTION", narration: nar || "Manual entry", status: "approved", date: document.getElementById("seedDate").value ? Timestamp.fromDate(new Date(document.getElementById("seedDate").value)) : Timestamp.now()
+                ref: "ADMIN_INJECTION", narration: nar || "Manual entry", graceMonths: grace, status: "approved", date: document.getElementById("seedDate").value ? Timestamp.fromDate(new Date(document.getElementById("seedDate").value)) : Timestamp.now()
             });
             alert("Data Committed Successfully!"); loadData();
         };
+        
         async function userTrans(type) {
             const amt = Number(document.getElementById("userAmt").value);
             const nar = document.getElementById("userNarration").value.trim();
+            let grace = 0;
+
+            // Guardrail: Require Grace Period only for Loans
+            if (type === 'loan') {
+                grace = Number(document.getElementById("userGrace").value);
+                if (!grace || grace < 1) {
+                    return alert("For loans, please enter the requested Grace Period (in months)!");
+                }
+            }
+
             if(!amt) return alert("Enter amount!");
+
             await addDoc(collection(db, "ALL_TRANSACTIONS"), {
-                amount: amt, user: currentUser.email.toLowerCase().trim(), ref: document.getElementById("userRef").value || "REQUEST",
-                narration: nar || "Not Specified", type: type, status: "pending", date: Timestamp.now()
+                amount: amt, 
+                user: currentUser.email.toLowerCase().trim(), 
+                ref: document.getElementById("userRef").value || "REQUEST",
+                narration: nar || "Not Specified", 
+                type: type, 
+                graceMonths: grace, // Saves the dynamic user input
+                status: "pending", 
+                date: Timestamp.now()
             });
+            
             alert("Submitted!"); 
             document.getElementById("userAmt").value = '';
             document.getElementById("userNarration").value = '';
             document.getElementById("userRef").value = '';
+            document.getElementById("userGrace").value = '';
             loadData();
         }
+
         document.getElementById("userSaveBtn").onclick = () => userTrans('deposit');
         document.getElementById("userRepayBtn").onclick = () => userTrans('repayment');
         document.getElementById("userLoanBtn").onclick = () => userTrans('loan');
