@@ -46,6 +46,10 @@
         .action-btns { display: flex; gap: 5px; }
         .action-btns button { padding: 6px 10px; margin: 0; font-size: 10px; width: auto; border-radius: 4px; }
         .narration-text { font-style: italic; color: #34495e; font-size: 10px; display: block; margin-top: 2px; }
+
+        /* Admin Directory Styles */
+        .member-row { background: white; color: black; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 11px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px; font-size: 10px; color: #555; }
     </style>
 </head>
 <body>
@@ -73,6 +77,7 @@
             </div>
         </div>
 
+        <!-- ADMIN PANELS -->
         <div id="kingzCommandCenter" class="card kingz-box" style="display:none;">
             <p class="label">🛠️ COMMAND CENTER</p>
             <input type="email" id="newMemEmail" placeholder="New Member Email">
@@ -84,19 +89,24 @@
                 <option value="deposit">Previous Savings</option>
                 <option value="loan">Previous Loan</option>
                 <option value="repayment">Previous Repayment</option>
+                <option value="interest">Manual Interest/Penalty</option>
             </select>
             <input type="number" id="seedAmt" placeholder="Amount (₦)">
-            <input type="text" id="seedNarration" placeholder="Payment For (e.g., Jan 2024 - Dec 2024)">
+            <input type="text" id="seedNarration" placeholder="Payment For / Penalty Reason">
             <input type="date" id="seedDate">
             <button id="seedBtn" class="btn-yellow">Inject Data</button>
             
+            <p class="label" style="margin-top: 15px;">👥 Members Directory (All Dashboards)</p>
+            <div id="adminMemberDirectory" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
+
             <p class="label" style="margin-top: 15px;">Pending Approvals</p>
             <div id="pendingList"></div>
             
             <p class="label" style="margin-top:15px;">Audit Logs (Undo)</p>
-            <div id="fullAdminLog" style="max-height: 150px; overflow-y: auto; font-size: 10px; background: white; color: black; padding: 5px; border-radius: 5px; border: 1px solid #ccc;"></div>
+            <div id="fullAdminLog" style="max-height: 120px; overflow-y: auto; font-size: 10px; background: white; color: black; padding: 5px; border-radius: 5px; border: 1px solid #ccc;"></div>
         </div>
 
+        <!-- MAIN GLOBAL METRICS -->
         <div class="card" style="background: #2c3e50; color: white; border: none;">
             <p class="label" style="color: #bdc3c7;">Global Vault Strength</p>
             <div style="display: flex; justify-content: space-between; margin-top: 10px;">
@@ -107,6 +117,7 @@
 
         <div class="deadline-banner">⚠️ All current loans must be cleared by <strong>May 31, 2026</strong>.</div>
 
+        <!-- PERSONAL DASHBOARD -->
         <div class="card">
             <p class="label">My Personal Summary</p>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
@@ -114,7 +125,7 @@
                     <p class="label">My Savings</p><p class="value" style="color: var(--accent);">₦<span id="pSavings">0</span></p>
                 </div>
                 <div style="background: var(--bg); padding: 12px; border-radius: 12px; border-bottom: 3px solid var(--danger);">
-                    <p class="label">My Loans</p><p class="value" style="color: var(--danger);">₦<span id="pLoans">0</span></p>
+                    <p class="label">My Loans + Interest</p><p class="value" style="color: var(--danger);">₦<span id="pLoans">0</span></p>
                     <span id="interestNotice" class="interest-tag"></span>
                 </div>
                 <div style="grid-column: span 2; background: var(--bg); padding: 12px; border-radius: 12px; border-bottom: 3px solid var(--warning);">
@@ -125,6 +136,7 @@
             </div>
         </div>
 
+        <!-- USER INTERACTION PANEL -->
         <div class="card">
             <p class="label">Transact</p>
             <input type="number" id="userAmt" placeholder="Amount (₦)">
@@ -181,24 +193,25 @@
         async function loadData() {
             const snap = await getDocs(collection(db, "ALL_TRANSACTIONS"));
             let gt = 0, gl = 0, ps = 0, pl = 0, totalInt = 0;
+            
             const hList = document.getElementById("historyList");
             const pList = document.getElementById("pendingList");
             const adminLog = document.getElementById("fullAdminLog");
-            hList.innerHTML = ""; pList.innerHTML = ""; adminLog.innerHTML = "";
+            const memberDirectory = document.getElementById("adminMemberDirectory");
+            
+            hList.innerHTML = ""; pList.innerHTML = ""; adminLog.innerHTML = ""; memberDirectory.innerHTML = "";
             const sortedDocs = snap.docs.sort((a, b) => b.data().date - a.data().date);
             const now = new Date();
             const deadlineDate = new Date("2026-05-31T23:59:59");
 
-            // Calculate Expected Target (2023: 36k, 2024: 60k, 2025: 60k = 156,000 base)
+            // Base calculations for 2023, 2024, 2025 targets
             const currentYear = now.getFullYear();
             const currentMonth = now.getMonth() + 1; 
             let expectedSavings = 156000; 
-            
-            if (currentYear === 2026) {
-                expectedSavings += (currentMonth * 10000);
-            } else if (currentYear > 2026) {
-                expectedSavings += (12 * 10000) + (((currentYear - 2027) * 12 + currentMonth) * 10000);
-            }
+            if (currentYear === 2026) expectedSavings += (currentMonth * 10000);
+
+            // Object matrix to track individual member profiles for the Admin Screen
+            let memberMatrix = {};
 
             sortedDocs.forEach(d => {
                 const data = d.data();
@@ -206,21 +219,43 @@
                 const recordEmail = data.user.toLowerCase().trim();
                 const userEmail = currentUser.email.toLowerCase().trim();
                 const displayNarration = data.narration ? data.narration : "Not Specified";
-                let currentInt = 0;
+                
+                // Initialize user profile in directory matrix if not existing
+                if(!memberMatrix[recordEmail]) {
+                    memberMatrix[recordEmail] = { savings: 0, loans: 0, autoInt: 0, manualInt: 0 };
+                }
 
-                if(data.type === 'loan' && data.status === 'approved') {
-                    if(now > deadlineDate) currentInt = data.amount * 0.05;
+                let currentAutoInt = 0;
+                // Auto-calculate 5% loan penalties post deadline
+                if(data.type === 'loan' && data.status === 'approved' && now > deadlineDate) {
+                    currentAutoInt = data.amount * 0.05;
                 }
 
                 if(data.status === "approved") {
-                    if(data.type === 'deposit') gt += data.amount;
-                    if(data.type === 'loan') gl += (data.amount + currentInt);
-                    if(data.type === 'repayment') gl -= data.amount;
+                    if(data.type === 'deposit') {
+                        gt += data.amount;
+                        memberMatrix[recordEmail].savings += data.amount;
+                    }
+                    if(data.type === 'loan') {
+                        gl += (data.amount + currentAutoInt);
+                        memberMatrix[recordEmail].loans += data.amount;
+                        memberMatrix[recordEmail].autoInt += currentAutoInt;
+                    }
+                    if(data.type === 'repayment') {
+                        gl -= data.amount;
+                        memberMatrix[recordEmail].loans -= data.amount;
+                    }
+                    if(data.type === 'interest') {
+                        gl += data.amount; // Manual interest additions expand target loan books
+                        memberMatrix[recordEmail].manualInt += data.amount;
+                    }
 
+                    // Map metrics explicitly if processing the logged-in user
                     if(recordEmail === userEmail) {
                         if(data.type === 'deposit') ps += data.amount;
-                        if(data.type === 'loan') { pl += data.amount; totalInt += currentInt; }
+                        if(data.type === 'loan') { pl += data.amount; totalInt += currentAutoInt; }
                         if(data.type === 'repayment') pl -= data.amount;
+                        if(data.type === 'interest') totalInt += data.amount;
                     }
                 }
 
@@ -231,8 +266,8 @@
                     let statusColor = data.status === "pending" ? "#f39c12" : (data.status === "rejected" ? "#e74c3c" : "#777");
                     hList.innerHTML += `<div class="history-item">
                         <strong>${data.type.toUpperCase()}</strong>: ₦${data.amount.toLocaleString()} <span style="color:${statusColor}; font-weight:bold;">[${data.status}]</span>
-                        ${currentInt > 0 ? `<span class="interest-tag">+₦${currentInt.toLocaleString()} Penalty</span>` : ''}
-                        <span class="narration-text">For: ${displayNarration}</span>
+                        ${data.type === 'loan' && currentAutoInt > 0 ? `<span class="interest-tag">+₦${currentAutoInt.toLocaleString()} Auto Penalty</span>` : ''}
+                        <span class="narration-text">For/Reason: ${displayNarration}</span>
                         <small>${dateStr} | Ref: ${data.ref || 'N/A'}</small>
                     </div>`;
                 }
@@ -241,9 +276,7 @@
                     if(data.status === "pending") {
                         pList.innerHTML += `
                         <div class="pending-item">
-                            <span><b>${data.user.split('@')[0]}</b><br>₦${data.amount.toLocaleString()} <b>[${data.type.toUpperCase()}]</b>
-                            <span class="narration-text">For: ${displayNarration}</span>
-                            <small style="color:#777;">${dateStr}</small></span>
+                            <span><b>${data.user.split('@')[0].toUpperCase()}</b><br>₦${data.amount.toLocaleString()} <b>[${data.type.toUpperCase()}]</b><br><small class="narration-text">For: ${displayNarration}</small></span>
                             <div class="action-btns">
                                 <button onclick="window.approve('${id}')" style="background:#2ecc71; color:white;">✓ Approve</button>
                                 <button onclick="window.deny('${id}')" style="background:#e74c3c; color:white;">✕ Deny</button>
@@ -252,31 +285,50 @@
                     }
                     
                     adminLog.innerHTML += `<div style="border-bottom:1px solid #eee; padding:6px 2px; display:flex; justify-content:space-between; align-items:center;">
-                        <span><b>${data.user.split('@')[0]}</b> [${data.type.toUpperCase()}]: ₦${data.amount.toLocaleString()}
-                        <span class="narration-text">${displayNarration}</span>
-                        <small style="color:#777;">${dateStr}</small></span> 
+                        <span><b>${data.user.split('@')[0].toUpperCase()}</b> [${data.type.toUpperCase()}]: ₦${data.amount.toLocaleString()}<br><small class="narration-text">${displayNarration}</small></span> 
                         <button onclick="window.undo('${id}')" style="background:#e74c3c; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:9px; cursor:pointer;">Undo</button>
                     </div>`;
                 }
             });
 
-            // Update UI Totals
+            // Build individual member dashboards inside the Admin Directory panel
+            if(currentUser.email.toLowerCase().trim() === ADMIN_EMAIL) {
+                Object.keys(memberMatrix).forEach(mem => {
+                    if(mem === ADMIN_EMAIL) return; // Skip showing admin profile in matrix
+                    let mSavings = memberMatrix[mem].savings;
+                    let mLoans = memberMatrix[mem].loans + memberMatrix[mem].autoInt + memberMatrix[mem].manualInt;
+                    let mDeficit = expectedSavings - mSavings;
+                    if(mDeficit < 0) mDeficit = 0;
+
+                    memberDirectory.innerHTML += `
+                    <div class="member-row">
+                        <strong>👤 ${mem.split('@')[0].toUpperCase()}</strong> (${mem})
+                        <div class="member-grid">
+                            <span>💰 Savings: <b>₦${mSavings.toLocaleString()}</b></span>
+                            <span>📈 Outstanding Debt: <b style="color:red;">₦${mLoans.toLocaleString()}</b></span>
+                            <span>⚠️ Arrears: <b style="color:orange;">₦${mDeficit.toLocaleString()}</b></span>
+                            <span>🎯 Target Met: <b>${((mSavings/expectedSavings)*100).toFixed(0)}%</b></span>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            // Sync structural parameters on main user panel
             document.getElementById("globalTotal").innerText = gt.toLocaleString();
             document.getElementById("globalLoans").innerText = gl.toLocaleString();
             document.getElementById("pSavings").innerText = ps.toLocaleString();
             document.getElementById("pLoans").innerText = (pl + totalInt).toLocaleString();
-            document.getElementById("interestNotice").innerText = totalInt > 0 ? `(+₦${totalInt.toLocaleString()} Penalty)` : "";
+            document.getElementById("interestNotice").innerText = totalInt > 0 ? `(+₦${totalInt.toLocaleString()} Penalties Added)` : "";
             
-            // Deficit Calculation
             document.getElementById("pTarget").innerText = expectedSavings.toLocaleString();
             let myDeficit = expectedSavings - ps;
-            if (myDeficit < 0) myDeficit = 0; // Prevent negative deficit if they paid in advance
+            if (myDeficit < 0) myDeficit = 0;
             document.getElementById("pDeficit").innerText = myDeficit.toLocaleString();
         }
 
-        window.approve = async (id) => { if(confirm("Confirm in bank?")) { await updateDoc(doc(db, "ALL_TRANSACTIONS", id), { status: "approved" }); loadData(); } };
+        window.approve = async (id) => { if(confirm("Confirm this transaction?")) { await updateDoc(doc(db, "ALL_TRANSACTIONS", id), { status: "approved" }); loadData(); } };
         window.deny = async (id) => { if(confirm("Reject this request?")) { await updateDoc(doc(db, "ALL_TRANSACTIONS", id), { status: "rejected" }); loadData(); } };
-        window.undo = async (id) => { if(confirm("Permanently delete record?")) { await deleteDoc(doc(db, "ALL_TRANSACTIONS", id)); loadData(); } };
+        window.undo = async (id) => { if(confirm("Permanently delete record from history?")) { await deleteDoc(doc(db, "ALL_TRANSACTIONS", id)); loadData(); } };
         
         document.getElementById("forgotPassBtn").onclick = async () => {
             const email = document.getElementById("emailInput").value.trim().toLowerCase();
@@ -292,9 +344,9 @@
             const nar = document.getElementById("seedNarration").value.trim();
             await addDoc(collection(db, "ALL_TRANSACTIONS"), {
                 amount: Number(document.getElementById("seedAmt").value), user: email, type: document.getElementById("seedType").value,
-                ref: "PREVIOUS_RECORD", narration: nar || "Not Specified", status: "approved", date: document.getElementById("seedDate").value ? Timestamp.fromDate(new Date(document.getElementById("seedDate").value)) : Timestamp.now()
+                ref: "ADMIN_INJECTION", narration: nar || "Manual entry", status: "approved", date: document.getElementById("seedDate").value ? Timestamp.fromDate(new Date(document.getElementById("seedDate").value)) : Timestamp.now()
             });
-            alert("Data Injected!"); loadData();
+            alert("Data Committed Successfully!"); loadData();
         };
         async function userTrans(type) {
             const amt = Number(document.getElementById("userAmt").value);
